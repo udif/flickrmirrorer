@@ -521,25 +521,33 @@ class FlickrMirrorer(object):
             else:
                 self.modified_photos += 1
 
-            request = self._requests_get(url, stream=True)
-            if not request.ok:
-                if photo['media'] == 'video':
-                    raise VideoDownloadError(
-                        'Manual download required (video may have changed): '
-                        'https://www.flickr.com/video_download.gne?id=%s' % photo['id'])
+            done = False
+            while not done:
+                try:
+                    self._progress('Fetching %s' % photo_basename)
+                    request = self._requests_get(url, stream=True)
+                    if not request.ok:
+                        if photo['media'] == 'video':
+                            raise VideoDownloadError(
+                                'Manual download required (video may have changed): '
+                                'https://www.flickr.com/video_download.gne?id=%s' % photo['id'])
 
-                sys.stderr.write(
-                    'Error: Failed to fetch %s: %s: %s\n'
-                    % (url, request.status_code, request.reason))
-                sys.exit(1)
+                        sys.stderr.write(
+                            'Error: Failed to fetch %s: %s: %s\n'
+                            % (url, request.status_code, request.reason))
+                        sys.exit(1)
 
-            # Write to temp file then rename to avoid incomplete files
-            # in case of failure part-way through.
-            with open(self.tmp_filename, 'wb') as tmp_file:
-                # Use 1 MiB chunks.
-                for chunk in request.iter_content(2**20):
-                    tmp_file.write(chunk)
-                    print('wrote a chunky')
+                    # Write to temp file then rename to avoid incomplete files
+                    # in case of failure part-way through.
+                    sys.stderr.write ("Collecting file!!!\n")
+                    with open(self.tmp_filename, 'wb') as tmp_file:
+                        # Use 1 MiB chunks.
+                        for chunk in request.iter_content(2**20):
+                            tmp_file.write(chunk)
+                            print('wrote a chunky')
+                    done = True
+                except requests.exceptions.SSLError as e:
+                    sys.stderr.write ("SSL error! Retrying...\n")
 
             tmp_file.close()
             print('doing rename: %s => %s' % (self.tmp_filename, photo_filename))
