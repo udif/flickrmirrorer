@@ -210,6 +210,7 @@ class FlickrMirrorer(object):
         self.ignore_photos = args.ignore_photos
         self.ignore_videos = args.ignore_videos
         self.delete_unknown = args.delete_unknown
+        self.no_abort_manual = args.no_abort_manual
 
         self.photostream_dir = os.path.join(self.dest_dir, 'photostream')
         self.albums_dir = os.path.join(self.dest_dir, 'Albums')
@@ -442,7 +443,8 @@ class FlickrMirrorer(object):
                 'your full resolution videos!\n' % self.photostream_dir)
             for error in download_errors:
                 sys.stderr.write('  %s\n' % error)
-            sys.exit(1)
+            if not self.no_abort_manual:
+                sys.exit(1)
 
         # Error out if we didn't fetch any photos
         if self.delete_unknown and not new_or_modified_files:
@@ -653,7 +655,8 @@ class FlickrMirrorer(object):
                 'your full resolution videos!\n' % self.photostream_dir)
             for error in download_errors:
                 sys.stderr.write('  %s\n' % error)
-            sys.exit(1)
+            if not self.no_abort_manual:
+                sys.exit(1)
 
         # Include list of photo IDs in metadata, so we can tell if photos
         # were added or removed from the album when mirroring in the future.
@@ -687,7 +690,11 @@ class FlickrMirrorer(object):
             # the local alphanumeric sort order matches the order on Flickr.
             digits = len(str(len(photos)))
             for i, photo in enumerate(photos):
-                photo_basename = self._get_photo_basename(photo)
+                try:
+                    photo_basename = self._get_photo_basename(photo)
+                except VideoDownloadError as e:
+                    # just create the symlinks we can. Rest are created after video is manually downloaded
+                    pass
                 photo_fullname = os.path.join(self.photostream_dir, photo_basename)
                 photo_relname = os.path.relpath(photo_fullname, album_dir)
                 symlink_basename = '%s_%s' % (str(i+1).zfill(digits), photo_basename)
@@ -770,7 +777,8 @@ class FlickrMirrorer(object):
                 'your full resolution videos!\n' % self.photostream_dir)
             for error in download_errors:
                 sys.stderr.write('  %s\n' % error)
-            sys.exit(1)
+            if not self.no_abort_manual:
+                sys.exit(1)
 
     def _mirror_collections(self):
         """Create a directory for each collection, and create symlinks to the
@@ -1056,6 +1064,11 @@ def main():
         dest='delete_unknown', default=False, const=True,
         help='delete unrecognized files in the destination directory. '
              'Warning: if you choose to ignore photos or videos, they will be deleted!')
+
+    parser.add_argument(
+        '--no_abort_manual', action='store_const',
+        dest='no_abort_manual', default=False, const=True,
+        help='Do not abort on manually downloaed videos. ')
 
     args = parser.parse_args()
 
