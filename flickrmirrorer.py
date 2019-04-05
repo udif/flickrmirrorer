@@ -211,6 +211,7 @@ class FlickrMirrorer(object):
         self.ignore_videos = args.ignore_videos
         self.delete_unknown = args.delete_unknown
         self.no_abort_manual = args.no_abort_manual
+        self.retry_photos = args.retry_photos
 
         self.photostream_dir = os.path.join(self.dest_dir, 'photostream')
         self.albums_dir = os.path.join(self.dest_dir, 'Albums')
@@ -523,8 +524,8 @@ class FlickrMirrorer(object):
             else:
                 self.modified_photos += 1
 
-            done = False
-            while not done:
+            retry_cnt = self.retry_photos
+            while retry_cnt >= 0:
                 try:
                     self._progress('Fetching %s' % photo_basename)
                     request = self._requests_get(url, stream=True)
@@ -547,8 +548,9 @@ class FlickrMirrorer(object):
                         for chunk in request.iter_content(2**20):
                             tmp_file.write(chunk)
                             print('wrote a chunky')
-                    done = True
+                    retry_cnt = -1
                 except requests.exceptions.SSLError as e:
+                    retry_cnt -= 1
                     sys.stderr.write ("SSL error! Retrying...\n")
 
             tmp_file.close()
@@ -1069,6 +1071,11 @@ def main():
         '--no_abort_manual', action='store_const',
         dest='no_abort_manual', default=False, const=True,
         help='Do not abort on manually downloaed videos. ')
+
+    parser.add_argument(
+        '--retry_photos', action='store', type=int,
+        dest='retry_photos', default=0,
+        help='Retry count for photo downloads if they fail')
 
     args = parser.parse_args()
 
